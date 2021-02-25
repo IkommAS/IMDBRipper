@@ -9,31 +9,55 @@ namespace IMDBRipper
     {
         static void Main(string[] args)
         {
-            var moviePath = "Data/data_movies.tsv";
+            var moviePath = "Data/movies.tsv";
             var movies = ExtractMovies(moviePath);
 
-            var actorPath = "Data/data_actors.tsv";
-            ExtractActors(actorPath,movies);
+            var actorMovieRelationPath = "Data/movies_actors.tsv";
+            var relations = ExtractMoviesActorsRelation(actorMovieRelationPath,movies);
+
+            var actorPath = "Data/data_actors_name.tsv";
+            ExtractActorsRelation(actorPath, relations);
 
             Console.ReadKey();
         }
 
-        private static void ExtractActors(string actorPath, List<Movie> movies)
+        private static void ExtractActorsRelation(string actorPath, List<MoviesActors> relations)
         {
-            string line; 
+            var actorHash = relations.Select(x => x.ActorId).ToHashSet();
+
+            string line;
             var reader = new StreamReader(actorPath);
             var actorList = new List<Actor>();
 
-            while((line = reader.ReadLine()) != null)
+            while ((line = reader.ReadLine()) != null)
             {
                 var actor = Actor.Parse(line);
-                if(movies.Select(x=> x.Id).Contains(actor.MovieId))
+                if (actorHash.Contains(actor.Id))
                 {
                     actorList.Add(actor);
                 }
             }
-
             GenerateActorTSV(actorList);
+        }
+
+        private static List<MoviesActors> ExtractMoviesActorsRelation(string actorMovieRelationPath, List<Movie> movies)
+        {
+            string line; 
+            var reader = new StreamReader(actorMovieRelationPath);
+            var moviesActorList = new List<MoviesActors>();
+            var moviesActorHash = movies.Select(x => x.Id).ToHashSet();
+
+            while ((line = reader.ReadLine()) != null)
+            {
+                var actor = MoviesActors.Parse(line);
+                if(moviesActorHash.Contains(actor.MovieId))
+                {
+                    moviesActorList.Add(actor);
+                }
+            }
+
+            GenerateMoviesActorTSV(moviesActorList);
+            return moviesActorList;
         }
 
         public static List<Movie> ExtractMovies(string moviePath)
@@ -61,18 +85,35 @@ namespace IMDBRipper
             return newDataset;
         }
 
-        public static void GenerateActorTSV(List<Actor> actors)
+        public static void GenerateMoviesActorTSV(List<MoviesActors> movieActors)
         {
             List<string> lines = new List<string>();
             lines.Add($"tconst	ordering	nconst	category	job	characters");
+            foreach (var ma in movieActors)
+            {
+                lines.Add(ma.MovieId+ "\t" +
+                    ma.Ordering + "\t" +
+                    ma.ActorId + "\t" +
+                    ma.Category + "\t" +
+                    ma.Job + "\t" +
+                    "["+(ma.Characters.Count()>0?ma.Characters.Aggregate((x,y) => x+","+y):"")+"]"+ "\t" 
+                    );
+            }
+            File.WriteAllText("C:\\temp\\movies_actors.tsv", lines.Aggregate((x, y) => x + Environment.NewLine + y));
+        }
+
+        public static void GenerateActorTSV(List<Actor> actors)
+        {
+            List<string> lines = new List<string>();
+            lines.Add($"nconst primaryName birthYear deathYear   primaryProfession knownForTitles");
             foreach (var actor in actors)
             {
-                lines.Add(actor.MovieId+ "\t" +
-                    actor.Ordering + "\t" +
-                    actor.Id + "\t" +
-                    actor.Category + "\t" +
-                    actor.Job + "\t" +
-                    "["+actor.Characters.Aggregate((x,y) => x+","+y)+"]"+ "\t" 
+                lines.Add(actor.Id + "\t" +
+                    actor.Name + "\t" +
+                    actor.BirthYear + "\t" +
+                    actor.DeathYear + "\t" +
+                    actor.PrimaryProfession + "\t" +
+                    actor.KnownForTitles + "\t"
                     );
             }
             File.WriteAllText("C:\\temp\\actors.tsv", lines.Aggregate((x, y) => x + Environment.NewLine + y));
