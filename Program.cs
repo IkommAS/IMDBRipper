@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
@@ -9,19 +10,25 @@ namespace IMDBRipper
     {
         static void Main(string[] args)
         {
-            var moviePath = "Data/movies.tsv";
+            var stopWatch = Stopwatch.StartNew();
+            var moviePath = "Data/data_movies.tsv";
             var movies = ExtractMovies(moviePath);
 
-            var actorMovieRelationPath = "Data/movies_actors.tsv";
-            var relations = ExtractMoviesActorsRelation(actorMovieRelationPath,movies);
+            var actorMovieRelationPath = "Data/data_movies_actors.tsv";
+            var moviesActorList = ExtractMoviesActorsRelation(actorMovieRelationPath,movies);
 
-            var actorPath = "Data/data_actors_name.tsv";
-            ExtractActorsRelation(actorPath, relations);
+            var actorPath = "Data/data_actors.tsv";
+            var actors = ExtractActorsRelation(actorPath, moviesActorList);
 
+            Console.WriteLine($"Movies[{movies.Count()}] Actors[{actors.Count()}] MoviesActors[{moviesActorList.Count()}]");
+            CleanseDeadRelations(moviesActorList, movies, actors);
+            Console.WriteLine($"After cleanse: MoviesActors[{moviesActorList.Count()}]");
+            GenerateMoviesActorTSV(moviesActorList);
+            Console.WriteLine($"Finished! Took {stopWatch.Elapsed.TotalMinutes} minutes");
             Console.ReadKey();
         }
 
-        private static void ExtractActorsRelation(string actorPath, List<MoviesActors> relations)
+        private static List<Actor> ExtractActorsRelation(string actorPath, List<MoviesActors> relations)
         {
             var actorHash = relations.Select(x => x.ActorId).ToHashSet();
 
@@ -38,6 +45,22 @@ namespace IMDBRipper
                 }
             }
             GenerateActorTSV(actorList);
+            return actorList;
+        }
+
+        private static void CleanseDeadRelations(List<MoviesActors> moviesActors, List<Movie> movies, List<Actor> actors)
+        {
+            var actor_mias = moviesActors.Where(x => !actors.Select(x => x.Id).Contains(x.ActorId)).ToList();
+            var movie_mias = moviesActors.Where(x => !movies.Select(x => x.Id).Contains(x.MovieId)).ToList();
+
+            foreach (var mias in actor_mias)
+            {
+                moviesActors.Remove(mias);
+            }
+            foreach (var mias in movie_mias)
+            {
+                moviesActors.Remove(mias);
+            }
         }
 
         private static List<MoviesActors> ExtractMoviesActorsRelation(string actorMovieRelationPath, List<Movie> movies)
@@ -55,8 +78,7 @@ namespace IMDBRipper
                     moviesActorList.Add(actor);
                 }
             }
-
-            GenerateMoviesActorTSV(moviesActorList);
+            
             return moviesActorList;
         }
 
@@ -79,8 +101,7 @@ namespace IMDBRipper
                 movieList.Add(Movie.Parse(line));
             }
 
-
-            var newDataset = movieList.Where(x => x.StartYear > 2000 && x.RuntimeMinutes > 120 && x.TitleType == "movie").ToList();
+            var newDataset = movieList.Where(x => x.RuntimeMinutes > 120 && x.TitleType == "movie").ToList();
             GenerateMovieTSV(newDataset);
             return newDataset;
         }
